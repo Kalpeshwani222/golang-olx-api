@@ -25,7 +25,7 @@ func main() {
 
 
 	srv := http.Server{
-		Addr: ": " + cfg.Port,
+		Addr: ":" + cfg.Port,
 		Handler: mux,
 		ReadTimeout: time.Second*10,
 		WriteTimeout: time.Second*30,
