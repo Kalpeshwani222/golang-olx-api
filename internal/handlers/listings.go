@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kalpeshWani222/olx-api/internal/httpx"
 	"github.com/kalpeshWani222/olx-api/internal/middleware"
 )
 
@@ -46,7 +47,7 @@ func (lh ListingHandler) List (w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			lh.logger.Error("listings query error","err",err)
-			http.Error(w,"internal server error",http.StatusInternalServerError)
+			httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
 			return
 		}
 
@@ -59,7 +60,7 @@ func (lh ListingHandler) List (w http.ResponseWriter, r *http.Request) {
 			var l listing
 			if err := rows.Scan(&l.ID, &l.Title, &l.Description, &l.Price, &l.City,&l.CreatedAt); err != nil {
 				lh.logger.Error("listings rows scan err","err",err)
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
 				return
 			}
 
@@ -68,7 +69,7 @@ func (lh ListingHandler) List (w http.ResponseWriter, r *http.Request) {
 
 		if err := rows.Err(); err != nil {
 			lh.logger.Error("listings rows.err","err",err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
 			return
 		}
 
@@ -96,7 +97,7 @@ func (lh ListingHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			lh.logger.Error("delete failed", "listing_id",id,"requestId",requestId,"err",err)
-			http.Error(w,"internal server error",http.StatusInternalServerError)
+			httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
 			return
 		}
 
