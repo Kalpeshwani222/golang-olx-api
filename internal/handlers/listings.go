@@ -31,8 +31,10 @@ func NewListingHandler(db *sql.DB) *ListingHandler {
 }
 
 func (lh ListingHandler) List (w http.ResponseWriter, r *http.Request) {
-		rows,err := lh.db.Query(`
-		SELECT id, title, description, price, city, created_at
+		ctx := r.Context()
+
+		rows,err := lh.db.QueryContext(ctx,`
+		SELECT id, title, description, price, city, created_at,
 		FROM listings
 		ORDER BY created_at DESC
 		LIMIT 100
@@ -75,10 +77,10 @@ func (lh ListingHandler) List (w http.ResponseWriter, r *http.Request) {
 	
 
 func (lh ListingHandler) Delete(w http.ResponseWriter, r *http.Request) {
-
+		ctx := r.Context()
 		id := r.PathValue("id")
 
-		_, err := lh.db.Exec(`
+		_, err := lh.db.ExecContext(ctx,`
 		DELETE FROM listings WHERE id = $1`,id)
 
 		if err != nil {
