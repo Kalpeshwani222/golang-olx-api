@@ -29,7 +29,7 @@ func main() {
 	//endpoints
 	mux.HandleFunc("GET /healthz", handlers.Health)
 	mux.HandleFunc("GET /listings", handlers.List(db))
-	
+    mux.HandleFunc("DELETE /listings/{id}", handlers.DeleteListing(db))
 
 	//server
 	srv := http.Server{
