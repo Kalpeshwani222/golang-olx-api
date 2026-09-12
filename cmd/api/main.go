@@ -24,12 +24,14 @@ func main() {
 
 	fmt.Println("starting server.....")
 
+	lh := handlers.NewListingHandler(db)
+
 	mux := http.NewServeMux()
 
 	//endpoints
 	mux.HandleFunc("GET /healthz", handlers.Health)
-	mux.HandleFunc("GET /listings", handlers.List(db))
-    mux.HandleFunc("DELETE /listings/{id}", handlers.DeleteListing(db))
+	mux.HandleFunc("GET /listings", lh.List)
+    mux.HandleFunc("DELETE /listings/{id}", lh.Delete)
 
 	//server
 	srv := http.Server{

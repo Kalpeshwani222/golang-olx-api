@@ -17,9 +17,21 @@ type listing struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-func List(db *sql.DB) http.HandlerFunc {
-	return func (w http.ResponseWriter, r *http.Request)  {
-		rows,err := db.Query(`
+type ListingHandler struct {
+	db *sql.DB
+}
+
+//constructor
+// Note => We return the pointer on this contructor because every time when 
+//         its using its return the address of it so its does not return the new copy every time 
+func NewListingHandler(db *sql.DB) *ListingHandler {
+	return &ListingHandler {
+		db : db,
+	}
+}
+
+func (lh ListingHandler) List (w http.ResponseWriter, r *http.Request) {
+		rows,err := lh.db.Query(`
 		SELECT id, title, description, price, city, created_at
 		FROM listings
 		ORDER BY created_at DESC
@@ -58,15 +70,15 @@ func List(db *sql.DB) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		 _ = json.NewEncoder(w).Encode(listings)
 
-    }
+    
 }
 	
 
-func DeleteListing(db * sql.DB) http.HandlerFunc{
-	return func (w http.ResponseWriter, r *http.Request)  {
+func (lh ListingHandler) Delete(w http.ResponseWriter, r *http.Request) {
+
 		id := r.PathValue("id")
 
-		_, err := db.Exec(`
+		_, err := lh.db.Exec(`
 		DELETE FROM listings WHERE id = $1`,id)
 
 		if err != nil {
@@ -77,5 +89,5 @@ func DeleteListing(db * sql.DB) http.HandlerFunc{
 
 		w.WriteHeader(http.StatusNoContent)
 
-	}
+	
 }
