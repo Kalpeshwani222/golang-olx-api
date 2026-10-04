@@ -19,6 +19,7 @@ type CreateListingResponse struct {
 	Description string    `json:"description"`
 	Price       int64     `json:"price"`
 	City        string    `json:"city"`
+	UserId      string     `json:"user_id"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
