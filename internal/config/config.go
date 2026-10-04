@@ -7,9 +7,10 @@ import (
 )
 
 type Config struct {
-	Port string
-	Env  string
-	DbUrl string
+	Port      string
+	Env       string
+	DbUrl     string
+	JWTSecret string
 }
 
 func MustLoad() Config {
@@ -20,7 +21,6 @@ func MustLoad() Config {
 		panic("PORT is required")
 	}
 
-	
 	env := os.Getenv("ENV")
 	if env == "" {
 		panic("ENV is required")
@@ -31,9 +31,15 @@ func MustLoad() Config {
 		panic("DATABASE_URL is required")
 	}
 
-	return  Config{
-		Port: port,
-		Env : env,
-		DbUrl: dbUrl,
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		panic("JWT_SECRET is required")
+	}
+
+	return Config{
+		Port:      port,
+		Env:       env,
+		DbUrl:     dbUrl,
+		JWTSecret: jwtSecret,
 	}
 }

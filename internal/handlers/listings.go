@@ -18,6 +18,7 @@ type listing struct {
 	Description string    `json:"description"`
 	Price       int64    `json:"price"`
 	City        string    `json:"city"`
+	UserId      string     `json:"user_id"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -27,112 +28,114 @@ type ListingHandler struct {
 }
 
 //constructor
-// Note => We return the pointer on this contructor because every time when 
-//         its using its return the address of it so its does not return the new copy every time 
+// Note => We return the pointer on this contructor because every time when
+//its using its return the address of it so its does not return the new copy every time
 func NewListingHandler(db *sql.DB, logger *slog.Logger) *ListingHandler {
-	return &ListingHandler {
+	return &ListingHandler{
 		db : db,
 		logger: logger,
 	}
 }
 
-func (lh ListingHandler) List (w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+func (lh ListingHandler) List(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-		rows,err := lh.db.QueryContext(ctx,`
-		SELECT id, title, description, price, city, created_at
+	rows, err := lh.db.QueryContext(ctx, `
+		SELECT id, title, description, price, city, user_id, created_at
 		FROM listings
 		ORDER BY created_at DESC
 		LIMIT 100
 		`)
 
-		if err != nil {
-			lh.logger.Error("listings query error","err",err)
-			httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
+	if err != nil {
+		lh.logger.Error("listings query error", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "Something Went Wrong", httpx.CodeInternalError)
+		return
+	}
+
+	// Release resources after reading the results
+	defer rows.Close()
+
+	listings := []listing{}
+
+	for rows.Next() {
+		var l listing
+		if err := rows.Scan(&l.ID, &l.Title, &l.Description, &l.Price, &l.City, &l.UserId, &l.CreatedAt); err != nil {
+			lh.logger.Error("listings rows scan err", "err", err)
+			httpx.Error(w, http.StatusInternalServerError, "Something Went Wrong", httpx.CodeInternalError)
 			return
 		}
 
-		// Release resources after reading the results
-		defer rows.Close()
+		listings = append(listings, l)
+	}
 
-		listings := []listing{}
+	if err := rows.Err(); err != nil {
+		lh.logger.Error("listings rows.err", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "Something Went Wrong", httpx.CodeInternalError)
+		return
+	}
 
-		for rows.Next() {
-			var l listing
-			if err := rows.Scan(&l.ID, &l.Title, &l.Description, &l.Price, &l.City,&l.CreatedAt); err != nil {
-				lh.logger.Error("listings rows scan err","err",err)
-				httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
-				return
-			}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(listings)
 
-		   listings = append(listings, l)
-		}
 
-		if err := rows.Err(); err != nil {
-			lh.logger.Error("listings rows.err","err",err)
-			httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		 _ = json.NewEncoder(w).Encode(listings)
-
-    
 }
-	
+
 
 func (lh ListingHandler) Delete(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		
-		//receiving the value from the middleware through the context with the use of the exported func
-		requestId := middleware.RequestIdFromContext(ctx)
-	
-		// requestId := ctx.Value(requestId)
-		id := r.PathValue("id")
-		
-		lh.logger.Info("debug log", "listing_id",id)
+	ctx := r.Context()
 
-		_, err := lh.db.ExecContext(ctx,`
-		DELETE FROM listings WHERE id = $1`,id)
+	//receiving the value from the middleware through the context with the use of the exported func
+	requestId := middleware.RequestIdFromContext(ctx)
 
-		if err != nil {
-			lh.logger.Error("delete failed", "listing_id",id,"requestId",requestId,"err",err)
-			httpx.Error(w,http.StatusInternalServerError,"Something Went Wrong",httpx.CodeInternalError)
-			return
-		}
+	// requestId := ctx.Value(requestId)
+	id := r.PathValue("id")
 
-		w.WriteHeader(http.StatusNoContent)
+	lh.logger.Info("debug log", "listing_id", id)
 
-	
+	_, err := lh.db.ExecContext(ctx, `
+		DELETE FROM listings WHERE id = $1`, id)
+
+	if err != nil {
+		lh.logger.Error("delete failed", "listing_id", id, "requestId", requestId, "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "Something Went Wrong", httpx.CodeInternalError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+
+
 }
 
 
 func (lh ListingHandler) Create(w http.ResponseWriter, r *http.Request) {
-    ctx := r.Context()
+	ctx := r.Context()
 	//receiving the value from the middleware through the context with the use of the exported func
 	requestId := middleware.RequestIdFromContext(ctx)
+	// get the userid from context using the middleware
+	userID := middleware.UserIDFromContext(ctx)
 
 	var req CreateListingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil{
-		lh.logger.Error("Failed to decode the req","requestId",requestId,"err",err)
-		httpx.Error(w,http.StatusBadRequest,"invalid body",httpx.CodeMalformedJSON)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		lh.logger.Error("Failed to decode the req", "requestId", requestId, "err", err)
+		httpx.Error(w,http.StatusBadRequest, "invalid body", httpx.CodeMalformedJSON)
 		return
 	}
 
 	//req body validation
 	if err := req.Validate(); err != nil {
 		var valErr ValidationError
-		errors.As(err,&valErr)
-		httpx.ValidationError(w,http.StatusUnprocessableEntity,err.Error(),httpx.CodeValidationFailed,valErr.Field)
+		errors.As(err, &valErr)
+		httpx.ValidationError(w, http.StatusUnprocessableEntity, err.Error(), httpx.CodeValidationFailed, valErr.Field)
 		return
 	}
 
 
-	row := lh.db.QueryRowContext(ctx,`
-	INSERT INTO listings (title,description,price,city) 
-	VALUES($1, $2, $3, $4) RETURNING *
-	`,req.Title,req.Description,req.Price,req.City)
+	row := lh.db.QueryRowContext(ctx, `
+	INSERT INTO listings (title, description, price, city, user_id)
+	VALUES($1, $2, $3, $4, $5) RETURNING id, title, description, price, city, user_id, created_at
+	`, req.Title, req.Description, req.Price, req.City, userID)
 
 	var response CreateListingResponse
 	if err := row.Scan(&response.ID,
@@ -140,15 +143,16 @@ func (lh ListingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		&response.Description,
 		&response.Price,
 		&response.City,
+		&response.UserId,
 		&response.CreatedAt); err != nil {
-		lh.logger.Error("Failed to Insert","requestId",requestId,"err",err)
-		httpx.Error(w,http.StatusInternalServerError,"something went wrong",httpx.CodeInternalError)
+		lh.logger.Error("Failed to Insert", "requestId", requestId, "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "something went wrong", httpx.CodeInternalError)
 		return
 	}
-	lh.logger.Info("Record Created","requestId",requestId,"listing_id",response.ID)
-	
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
+	lh.logger.Info("Record Created", "requestId", requestId, "listing_id", response.ID, "user_id", userID)
 
-		 _ = json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	_ = json.NewEncoder(w).Encode(response)
 }

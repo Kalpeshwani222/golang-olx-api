@@ -19,12 +19,12 @@ func main() {
 	cfg := config.MustLoad()
 
 	//connecting to the db
-	db,err := db.Connect(cfg.DbUrl)
+	db, err := db.Connect(cfg.DbUrl)
 	if err != nil {
-		log.Fatalf("main.db.connect: %v",err)
+		log.Fatalf("main.db.connect: %v", err)
 	}
 
-	logHanlder := slog.NewJSONHandler(os.Stdout,&slog.HandlerOptions{
+	logHanlder := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 		Level: slog.LevelInfo, //default LevelInfo
 	})
@@ -34,30 +34,37 @@ func main() {
 	fmt.Println("database connected.....")
 	fmt.Println("starting server.....")
 
-	lh := handlers.NewListingHandler(db,logger)
+	lh := handlers.NewListingHandler(db, logger)
+	ah := handlers.NewAuthHandler(db, logger, cfg.JWTSecret)
+
+	authMiddleware := middleware.RequireAuth([]byte(cfg.JWTSecret))
 
 	mux := http.NewServeMux()
 
-	//endpoints
+	// Public routes
 	mux.HandleFunc("GET /healthz", handlers.Health)
 	mux.HandleFunc("GET /listings", lh.List)
-    mux.HandleFunc("DELETE /listings/{id}", lh.Delete)
-    mux.HandleFunc("POST /listings", lh.Create)
+	mux.HandleFunc("POST /auth/register", ah.Register)
+	mux.HandleFunc("POST /auth/login", ah.Login)
 
-	//attaching the requestId middleware to the all route
+	// Protected routes
+	mux.Handle("POST /listings", authMiddleware(http.HandlerFunc(lh.Create)))
+	mux.Handle("DELETE /listings/{id}", authMiddleware(http.HandlerFunc(lh.Delete)))
+
+	 //Global middleware:attaching the requestId middleware to the all route
 	handler := middleware.RequestId(mux)
 
 	//server
 	srv := http.Server{
-		Addr: ":" + cfg.Port,
-		Handler: handler,
-		ReadTimeout: time.Second*10,
-		WriteTimeout: time.Second*30,
-		IdleTimeout: time.Second*60,
+		Addr:         ":" + cfg.Port,
+		Handler:      handler,
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 30,
+		IdleTimeout:  time.Second * 60,
 	}
 
 	log.Printf("server is running on %s", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("server failed : %v",err)
+		log.Fatalf("server failed : %v", err)
 	}
 }
